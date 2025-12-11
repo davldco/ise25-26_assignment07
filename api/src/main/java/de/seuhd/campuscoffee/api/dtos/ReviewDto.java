@@ -19,10 +19,10 @@ public record ReviewDto (
     @Nullable LocalDateTime updatedAt,
 
     @NotNull
-    @NonNull Long posID,
+    @NonNull Long posId,
 
     @NotNull
-    @NonNull Long authorID,
+    @NonNull Long authorId,
 
     @NotBlank(message = "Review cannot be empty.")
     @NonNull String review,

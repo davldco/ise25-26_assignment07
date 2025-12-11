@@ -1,10 +1,9 @@
 package de.seuhd.campuscoffee.domain.implementation;
 
 import de.seuhd.campuscoffee.domain.configuration.ApprovalConfiguration;
-import de.seuhd.campuscoffee.domain.exceptions.NotFoundException;
 import de.seuhd.campuscoffee.domain.exceptions.ValidationException;
-import de.seuhd.campuscoffee.domain.model.objects.Pos;
 import de.seuhd.campuscoffee.domain.model.objects.Review;
+import de.seuhd.campuscoffee.domain.model.objects.User;
 import de.seuhd.campuscoffee.domain.ports.api.ReviewService;
 import de.seuhd.campuscoffee.domain.ports.data.CrudDataService;
 import de.seuhd.campuscoffee.domain.ports.data.PosDataService;
@@ -26,7 +25,6 @@ public class ReviewServiceImpl extends CrudServiceImpl<Review, Long> implements 
     private final ReviewDataService reviewDataService;
     private final UserDataService userDataService;
     private final PosDataService posDataService;
-    // TODO: Try to find out the purpose of this class and how it is connected to the application.yaml configuration file.
     private final ApprovalConfiguration approvalConfiguration;
 
     public ReviewServiceImpl(@NonNull ReviewDataService reviewDataService,
@@ -48,28 +46,31 @@ public class ReviewServiceImpl extends CrudServiceImpl<Review, Long> implements 
     @Override
     @Transactional
     public @NonNull Review upsert(@NonNull Review review) {
-        // Prüfen, ob POS existiert
-        Pos pos = posDataService.getById(review.pos().getId());
-        if (pos == null) {
-            throw new NotFoundException(Pos.class, review.pos().getId());
+        log.info("Upserting review with ID '{}' for POS with ID '{}' by user with ID '{}'...",
+                review.getId(), review.pos().getId(), review.author().getId());
+
+        // validate that the POS exists
+        posDataService.getById(review.pos().getId());
+
+        // validate that a user cannot create more than one review per POS
+        List<Review> existingReviews = reviewDataService.filter(review.pos(), review.author());
+        if (!existingReviews.isEmpty()) {
+            throw new ValidationException("User cannot create more than one review per POS.");
         }
 
-        // Prüfen, ob User bereits Review für diese POS hat
-        List<Review> existing = reviewDataService.filter(pos, review.author());
-        if (!existing.isEmpty()) {
-            throw new ValidationException("User can only create one review per POS");
-        }
-
-        // Neue Reviews initialisieren
-        if (review.id() == null) {
-            review = review.toBuilder()
+        // set initial approval count and status for new reviews
+        Review reviewToSave = review;
+        if (review.getId() == null) {
+            reviewToSave = review.toBuilder()
                     .approvalCount(0)
                     .approved(false)
                     .build();
+        } else {
+            // for updates, recalculate approval status based on current approval count
+            reviewToSave = updateApprovalStatus(review);
         }
 
-        // Review speichern
-        return super.upsert(review);
+        return super.upsert(reviewToSave);
     }
 
     @Override
@@ -85,19 +86,19 @@ public class ReviewServiceImpl extends CrudServiceImpl<Review, Long> implements 
                 review.getId(), userId);
 
         // validate that the user exists
-        userDataService.getById(userId);
+        User user = userDataService.getById(userId);
 
         // validate that the review exists
-        reviewDataService.getById(review.getId());
+        Review existingReview = reviewDataService.getById(review.getId());
 
         // a user cannot approve their own review
-        if (review.author().getId().equals(userId)) {
-            throw new ValidationException("A user cannot approve their own review.");
+        if (existingReview.author().getId().equals(user.getId())) {
+            throw new ValidationException("Users cannot approve their own reviews.");
         }
 
         // increment approval count
-        Review updatedReview = review.toBuilder()
-                .approvalCount(review.approvalCount() + 1)
+        Review updatedReview = existingReview.toBuilder()
+                .approvalCount(existingReview.approvalCount() + 1)
                 .build();
 
         // update approval status to determine if the review now reaches the approval quorum

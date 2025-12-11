@@ -1,7 +1,9 @@
 package de.seuhd.campuscoffee;
 
 import de.seuhd.campuscoffee.domain.model.objects.Pos;
+import de.seuhd.campuscoffee.domain.model.objects.Review;
 import de.seuhd.campuscoffee.domain.model.objects.User;
+import de.seuhd.campuscoffee.domain.ports.api.ReviewService;
 import de.seuhd.campuscoffee.domain.ports.api.UserService;
 import de.seuhd.campuscoffee.domain.tests.TestFixtures;
 import de.seuhd.campuscoffee.domain.ports.api.PosService;
@@ -23,14 +25,14 @@ import java.util.List;
 class LoadInitialData implements InitializingBean {
     private final PosService posService;
     private final UserService userService;
-    //private final ReviewService reviewService;
+    private final ReviewService reviewService;
 
     // TODO: Uncomment review-related code once the interfaces and services have been implemented.
 
     @Override
     public void afterPropertiesSet() {
         log.info("Deleting existing data...");
-        //reviewService.clear();
+        reviewService.clear();
         posService.clear();
         userService.clear();
         log.info("Loading initial data...");
@@ -38,8 +40,8 @@ class LoadInitialData implements InitializingBean {
         log.info("Created {} users.", userFixtures.size());
         List<Pos> posFixtures = TestFixtures.createPosFixtures(posService);
         log.info("Created {} POS.", posFixtures.size());
-        //List<Review> reviewFixtures = TestFixtures.createReviewFixtures(reviewService);
-        //log.info("Created {} reviews.", reviewFixtures.size());
+        List<Review> reviewFixtures = TestFixtures.createReviewFixtures(reviewService);
+        log.info("Created {} reviews.", reviewFixtures.size());
         log.info("Initial data loaded successfully.");
     }
 }
